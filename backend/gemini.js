@@ -96,7 +96,8 @@ Your task is to understand the user's natural language input and respond with a 
 {
   "type": "general" | "google_search" | "youtube_search" | "youtube_play" | 
           "get_time" | "get_date" | "get_day" | "get_month" | 
-          "calculator_open" | "instagram_open" | "facebook_open" | "weather_show",
+          "calculator_open" | "instagram_open" | "facebook_open" | "weather_show" |
+          "open_vscode",
 
   "userInput": "<original user input>" {only remove your name from the userInput if it is present},
 
@@ -121,6 +122,7 @@ Type meanings:
 "get_date": if the user asks for today's date.
 "get_day": if the user asks what day it is.
 "get_month": if the user asks for the current month.
+"open_vscode": if the user wants to open VS Code, Visual Studio Code, or open code editor.
 
 Important Rules:
 If someone asks "Who created you?" or "Who made you?", answer using ${userName}.
@@ -144,26 +146,32 @@ User Input: ${command}
       throw new Error("Gemini API key not configured");
     }
 
-    // use the official SDK so we don't have to manage raw URLs ourselves
-    const client = new GoogleGenerativeAI(apiKey);
-    // most recent stable API version (v1) is required for Gemini models
-    const model = client.getGenerativeModel(
-      { model: modelName },
-      { apiVersion: "v1" }
+    // Make direct HTTP request to bypass SDK regex issues with new API key formats (like those starting with "AQ.")
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`,
+      {
+        contents: [
+          {
+            parts: [
+              { text: prompt }
+            ]
+          }
+        ]
+      }
     );
-
-    // send the prompt as a plain string; the SDK wraps it correctly
-    const response = await model.generateContent(prompt);
-    // .text() aggregates the pieces into a single string
-    return response?.response?.text();
+    
+    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return text;
   } catch (error) {
     // log the full error object for debugging
-    console.log("Gemini Error:", error);
+    console.log("Gemini Error:", error.response?.data || error.message || error);
 
     // if it's a quota error, record the earliest retry time and use fallback
-    if (error.status === 429 && error.errorDetails) {
+    const responseStatus = error.response?.status;
+    const responseDetails = error.response?.data?.error?.details;
+    if (responseStatus === 429 && responseDetails) {
       // try to pull delay field from details if available
-      const retryInfo = (error.errorDetails || []).find(d => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
+      const retryInfo = (responseDetails || []).find(d => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
       let delaySec = 30;
       if (retryInfo && retryInfo.retryDelay) {
         const m = retryInfo.retryDelay.match(/(\d+)s/);
@@ -171,14 +179,16 @@ User Input: ${command}
       }
       nextApiCallAllowed = Date.now() + delaySec * 1000;
       console.log(`Quota exceeded for ${delaySec}s, switching to fallback responses`);
-      return getFallbackResponse(command, assistantName);
+      return getFallbackResponse(command, userName);
     }
 
     // if the API call fails, return a minimal JSON string so upstream parsing still works
     return JSON.stringify({
       type: "general",
       userInput: command || "",
-      response: "(error)"
+      response: error.message.includes("API key not configured")
+        ? "Please set your GEMINI_API_KEY in the backend .env file."
+        : "Sorry, I had an issue connecting to the AI. Please try again."
     });
   }
 };

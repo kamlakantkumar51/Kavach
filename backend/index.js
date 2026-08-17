@@ -24,5 +24,6 @@ app.use("/api/user",userRouter);
   
 app.listen(port,()=>{
     connectDb()
-    console.log("server started");
+    console.log("server started on port", port);
+    console.log("SMTP_HOST:", process.env.SMTP_HOST);
 })

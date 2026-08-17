@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 
 function Customize2() {
     const {userData,backendImage,selectedImage,serverUrl,setUserData} = React.useContext(userDataContext);
-    const [assistantName,setAssistantName] = React.useState(userData?.AssistantName || "")
+    const [assistantName,setAssistantName] = React.useState(userData?.assistantName || "")
     const [loading,setLoading] = useState(false)
     const navigate = useNavigate()
     const handleUpdateAssistant = async()=>{

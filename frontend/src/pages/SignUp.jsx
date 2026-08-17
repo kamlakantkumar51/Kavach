@@ -36,8 +36,10 @@ function SignUp() {
       setLoading(false);
       if (error.response && error.response.data && error.response.data.message) {
         setErr(error.response.data.message);
+      } else if (error.code === 'ERR_NETWORK' || !error.response) {
+        setErr("Server is starting up (Render free tier takes ~30s to wake). Please wait a moment and click Sign Up again!");
       } else {
-        setErr("Something went wrong during sign up.");
+        setErr("Something went wrong during sign up. Please try again.");
       }
     }
   };
